@@ -3,17 +3,19 @@ from langgraph.graph import StateGraph, MessagesState, END, START
 from speech_recognition import record_audio_until_silence
 from text_to_speech import play_audio
 from langgraph.checkpoint.memory import MemorySaver
-from chatbot import graph
+from chatbot import create_graph
+from chatbot1 import graph
 from langchain_core.messages import HumanMessage
 from dotenv import load_dotenv
-from chatbot import chatbot
+from langgraph.pregel.remote import RemoteGraph
 
 load_dotenv()
 memory = MemorySaver()
 
+local_url = "http://localhost:8000"
+
 # Define parent graph
 builder = StateGraph(MessagesState)
-
 # Add remote graph directly as a node
 builder.add_node("audio_input", record_audio_until_silence)
 builder.add_node("agent", graph)
@@ -27,7 +29,7 @@ audio_graph = builder.compile(checkpointer=memory)
 config = {"configurable": {"thread_id": "1"}}
 
 for chunk in audio_graph.stream(
-    {"messages": HumanMessage(content="Follow the user's instructions:")},
+    input={"messages": HumanMessage(content="Follow the user's instructions:")},
     stream_mode="values",
     config=config,
 ):
