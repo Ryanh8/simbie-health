@@ -14,6 +14,9 @@ from dotenv import load_dotenv
 from langgraph.graph import MessagesState, START, END
 from langgraph.prebuilt import create_react_agent
 from langchain_core.messages import HumanMessage
+from yaml import safe_load
+import yaml
+from langchain_core.messages import SystemMessage
 
 
 class State(TypedDict):
@@ -21,60 +24,72 @@ class State(TypedDict):
 
 
 @tool
-def check_supported_banks(bank_name: str) -> Dict[str, Any]:
+def get_patient_info(patient_identifier: str) -> Dict[str, Any]:
     """
-    Checks if a given bank name is supported and returns a response with a status and reasoning.
-    Parameters:
-    bank_name (str): The name of the bank to check.
+    Retrieves patient information from the system.
+
+    Args:
+        patient_identifier (str): Could be patient ID, phone number, or email
+
     Returns:
-        Dict[str, Any]: A dictionary containing:
-            - "status" (str): "true" if the bank is accepted, "possible" if it is EQBank (with conditions), or "false" if unsupported.
-            - "reasoning" (str): Explanation of the status.
+        Dict containing patient information or error message
     """
-    supported_banks = {
-        "RBC Royal Bank",
-        "TD",
-        "RBC",
-        "BMO Bank of Montreal",
-        "ATB",
-        "TD Canada Trust",
-        "Scotiabank",
-        "Servus CU",
-        "KOHO",
-        "PC Financial",
-        "Tangerine - Personal",
-        "Simplii Financial",
-        "Laurentian Bank",
-        "Simplii",
-        "National Bank of Canada",
-        "BMO",
-        "CIBC",
-        "ATB Online - Personal",
-        "Scotia",
-        "Tangerine",
-        "National",
-        "Servus Credit Union - Personal Online Banking",
-        "Vancity",
-        "Laurentienne",
-    }
-
-    special_cases = {
-        "EQBank": "Pushes allowed for AllStar+ users who previously repaid voluntarily.",
-        "Desjardins": "Some debit cards are not supported — agent to troubleshoot & validate.",
-    }
-    best_match, score = process.extractOne(
-        bank_name, supported_banks.union(special_cases.keys())
-    )
-
-    if best_match in supported_banks and score > 85:
-        return {"status": "true", "reasoning": "Bank is accepted."}
-    elif best_match in special_cases and score > 85:
-        return {"status": "possible", "reasoning": special_cases[best_match]}
-    else:
+    try:
+        # Mock API call - replace with your actual patient database API
+        # Example return structure
         return {
-            "status": "false",
-            "reasoning": "Bank is not supported, do not suggest that Bree will be adding support for the bank in the future.",
+            "status": "success",
+            "patient_data": {
+                "patient_id": "12345",
+                "name": "John Doe",
+                "date_of_birth": "1980-01-01",
+                "phone": "123-456-7890",
+                "email": "john@example.com",
+                "insurance_provider": "Blue Cross",
+                "insurance_id": "INS123456",
+            },
         }
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Error retrieving patient information: {str(e)}",
+        }
+
+
+@tool
+def schedule_appointment(
+    patient_id: str,
+    appointment_type: str,
+    preferred_date: str = None,
+    preferred_time: str = None,
+) -> Dict[str, Any]:
+    """
+    Books an appointment for the patient.
+
+    Args:
+        patient_id (str): Patient's unique identifier
+        appointment_type (str): Type of appointment requested
+        preferred_date (str, optional): Preferred date (YYYY-MM-DD)
+        preferred_time (str, optional): Preferred time (HH:MM)
+
+    Returns:
+        Dict containing appointment details or error message
+    """
+    try:
+        # Mock API call - replace with your actual scheduling API
+        return {
+            "status": "success",
+            "appointment": {
+                "appointment_id": "APT789012",
+                "date": "2024-03-20",
+                "time": "14:30",
+                "doctor": "Dr. Smith",
+                "location": "Main Clinic",
+                "notes": "Please arrive 15 minutes early",
+            },
+        }
+    except Exception as e:
+        return {"status": "error", "message": f"Error scheduling appointment: {str(e)}"}
 
 
 class Chatbot1:
@@ -83,18 +98,24 @@ class Chatbot1:
         self.memory = MemorySaver()
         self.openai_client = OpenAI()
         self.llm = ChatOpenAI(model="gpt-4")
-        # Bind tools to LLM
-        self.llm_with_tools = self.llm.bind_tools([check_supported_banks])
+        self.tools = [get_patient_info, schedule_appointment]
+        self.llm_with_tools = self.llm.bind_tools(self.tools)
+        # self.yaml_file = safe_load(open("prompts/chatbot.yaml", "r"))
+        with open("prompts/chatbot.yaml") as stream:
+            self.system_prompt = yaml.safe_load(stream)["format"]
+
+        print(self.system_prompt)
+
         self.agent = create_react_agent(
-            model=self.llm, tools=[check_supported_banks], checkpointer=self.memory
+            model=self.llm,
+            tools=self.tools,
+            prompt=SystemMessage(content=self.system_prompt),
         )
 
     def chatbot(self, state: State):
         """Process messages using the LLM with tools"""
         print("this is the state", state["messages"])
         response = self.agent.invoke(state)
-
-        print("this is the response", response)
         response["messages"][-1] = HumanMessage(
             content=response["messages"][-1].content, name="agent"
         )

@@ -12,8 +12,9 @@ from langgraph.pregel.remote import RemoteGraph
 load_dotenv()
 memory = MemorySaver()
 
-local_url = "http://localhost:8000"
-
+local_url = "http://localhost:3000"
+graph_name = "chatbot1"
+remote_graph = RemoteGraph(graph_name, url=local_url)
 # Define parent graph
 builder = StateGraph(MessagesState)
 # Add remote graph directly as a node
