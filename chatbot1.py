@@ -25,7 +25,7 @@ from langchain_community.tools.playwright.utils import create_sync_playwright_br
 from langchain import hub
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 import asyncio
-from langchain_core.callbacks import AsyncCallbackHandler
+from text_to_speech import play_intermediate_response
 
 
 class State(TypedDict):
@@ -37,52 +37,25 @@ bb = os.getenv("BROWSERBASE_API_TOKEN")
 
 
 @tool
-async def run() -> Dict[str, Any]:
+async def book_calendar() -> Dict[str, Any]:
     """
-    This tool is used to run a browser session.
+    This tool is used to run a browser session. Use this tool whenever someone asks you to book time on your calendar.
     Use the response from this tool to retrieve information from the page.
     """
-    # # Create a session on Browserbase
-    # playwright = sync_playwright()
-    # session = bb.sessions.create(project_id=os.getenv("BROWSERBASE_PROJECT_ID"))
 
-    # # Connect to the remote session
-    # chromium = playwright.chromium
-    # browser = chromium.connect_over_cdp(session.connect_url)
-    # context = browser.contexts[0]
-    # page = context.pages[0]
-
-    # try:
-    #     # Execute Playwright actions on the remote browser tab
-    #     page.goto("https://news.ycombinator.com/")
-    #     page_title = page.title()
-    #     print(f"Page title: {page_title}")
-    #     page.screenshot(path="screenshot.png")
-    # finally:
-    #     page.close()
-    #     browser.close()
-
-    # print(f"Done! View replay at https://browserbase.com/sessions/{session.id}")
-
-    # sync_browser = create_sync_playwright_browser()
-    # toolkit = PlayWrightBrowserToolkit.from_browser(sync_browser=sync_browser)
-    # tools = toolkit.get_tools()
-    # llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-    # prompt = hub.pull("hwchase17/openai-tools-agent")
-    # agent = create_openai_tools_agent(llm, tools, prompt)
-    # # agent = create_react_agent(llm, tools, prompt) #Use this if using hwchase17/react prompt
-    # agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-    # command = {
-    #     "input": "Start from the page https://www.google.com/, in the search bar type 'what is the weather in boston' and press enter. Once you get the results, return the first result."
-    # }
-    # response = agent_executor.invoke(command)
-    # return response
-
+    play_intermediate_response("Okay, give me a moment to process this for you.")
     agent = Agent(
         task="Book some time on my calendar on the link https://calendly.com/ryanhu20/30min?month=2025-03 for any random day with a random time and name and use the email ryanhu20@gmail.com to book the time",
         llm=ChatOpenAI(model="gpt-4o"),
     )
-    await agent.run()
+    try:
+        history = await agent.run()
+        print(history)
+        result = history.final_result()
+    except Exception as e:
+        return {"status": "error", "message": f"Error booking calendar: {str(e)}"}
+
+    return {"status": "success", "message": result}
 
 
 @tool
@@ -142,8 +115,7 @@ class Chatbot1:
         self.memory = MemorySaver()
         self.openai_client = OpenAI()
         self.llm = ChatOpenAI(model="gpt-4")
-        self.tools = [get_patient_info, schedule_appointment, run]
-        self.llm_with_tools = self.llm.bind_tools(self.tools)
+        self.tools = [get_patient_info, schedule_appointment, book_calendar]
         # self.yaml_file = safe_load(open("prompts/chatbot.yaml", "r"))
         with open("prompts/chatbot.yaml") as stream:
             self.system_prompt = yaml.safe_load(stream)["format"]

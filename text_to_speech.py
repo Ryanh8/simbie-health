@@ -30,7 +30,26 @@ def play_audio(state: MessagesState):
             style=0.0,
             use_speaker_boost=True,
         ),
+        optimize_streaming_latency=4,
     )
 
     # Play the audio back
+    play(response)
+
+
+def play_intermediate_response(message: str):
+    """Plays an intermediate response while waiting for tool execution"""
+    response = elevenlabs_client.text_to_speech.convert(
+        voice_id="JBFqnCBsd6RMkjVDRZzb",
+        output_format="mp3_44100_128",
+        text=message,
+        model_id="eleven_multilingual_v2",
+        voice_settings=VoiceSettings(
+            stability=0.0,
+            similarity_boost=1.0,
+            style=0.0,
+            use_speaker_boost=True,
+        ),
+        optimize_streaming_latency=4,
+    )
     play(response)
