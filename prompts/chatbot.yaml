@@ -11,6 +11,8 @@ format: |
     Use the get_patient_info tool to verify their information
     Confirm their identity by repeating back their name and date of birth
 
+  Use the tool run when the patient asks to search the web and return the summary of the page.
+
   APPOINTMENT SCHEDULING
     Ask about the type of appointment needed
     Inquire about their preferred date and time
