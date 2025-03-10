@@ -1,6 +1,6 @@
 import datetime
 import os
-from browser_use import Agent
+from browser_use import Agent, Browser
 from fuzzywuzzy import process
 from typing import Annotated, Any, Dict
 from typing_extensions import TypedDict
@@ -36,17 +36,35 @@ load_dotenv()
 bb = os.getenv("BROWSERBASE_API_TOKEN")
 
 
-@tool
-async def book_calendar() -> Dict[str, Any]:
-    """
-    This tool is used to run a browser session. Use this tool whenever someone asks you to book time on your calendar.
-    Use the response from this tool to retrieve information from the page.
-    """
+# @tool
+# async def book_calendar() -> Dict[str, Any]:
+#     """
+#     This tool is used to run a browser session. Use this tool whenever someone asks you to book time on your calendar.
+#     Use the response from this tool to retrieve information from the page.
+#     """
 
+#     play_intermediate_response("Okay, give me a moment to process this for you.")
+#     agent = Agent(
+#         task="Book some time on my calendar on the link https://calendly.com/ryanhu20/30min?month=2025-03 for any random day with a random time and name and use the email ryanhu20@gmail.com to book the time",
+#         llm=ChatOpenAI(model="gpt-4o"),
+#         browser=self.browser,
+#     )
+#     try:
+#         history = await agent.run()
+#         print(history)
+#         result = history.final_result()
+#     except Exception as e:
+#         return {"status": "error", "message": f"Error booking calendar: {str(e)}"}
+
+#     return {"status": "success", "message": result}
+
+
+async def use_browser_agent(browser: Browser):
     play_intermediate_response("Okay, give me a moment to process this for you.")
     agent = Agent(
         task="Book some time on my calendar on the link https://calendly.com/ryanhu20/30min?month=2025-03 for any random day with a random time and name and use the email ryanhu20@gmail.com to book the time",
         llm=ChatOpenAI(model="gpt-4o"),
+        browser=browser,
     )
     try:
         history = await agent.run()
@@ -109,18 +127,55 @@ async def schedule_appointment(
         return {"status": "error", "message": f"Error scheduling appointment: {str(e)}"}
 
 
+def create_book_calendar(browser: Browser):
+    @tool
+    async def book_calendar(task: str) -> Dict[str, Any]:
+        """
+        Parameters:
+        Task: str - You must clearly recieve instructions froom the user, on the specific time, date, name and email to book the time.
+        This tool is used to run a browser session. Use this tool whenever someone asks you to book time on your calendar.
+        Use the response from this tool to retrieve information from the page.
+        """
+        play_intermediate_response("Okay, give me a moment to process this for you.")
+        agent = Agent(
+            task="Book some time on my calendar on the link https://calendly.com/ryanhu20/30min?month=2025-03 based on the task: "
+            + task,
+            llm=ChatOpenAI(model="gpt-4o"),
+            browser=browser,
+        )
+        try:
+            history = await agent.run()
+            print(history)
+            result = history.final_result()
+            return {"status": "success", "message": result}
+        except Exception as e:
+            return {"status": "error", "message": f"Error booking calendar: {str(e)}"}
+
+    # Return the function itself, not the decorated version
+    return book_calendar
+
+
 class Chatbot1:
     def __init__(self):
         load_dotenv()
         self.memory = MemorySaver()
         self.openai_client = OpenAI()
         self.llm = ChatOpenAI(model="gpt-4")
-        self.tools = [get_patient_info, schedule_appointment, book_calendar]
-        # self.yaml_file = safe_load(open("prompts/chatbot.yaml", "r"))
+        self.browser = Browser()
+
         with open("prompts/chatbot.yaml") as stream:
             self.system_prompt = yaml.safe_load(stream)["format"]
 
         print(self.system_prompt)
+
+        # Create the tool with the browser instance
+        book_calendar_tool = create_book_calendar(self.browser)
+
+        self.tools = [
+            get_patient_info,
+            schedule_appointment,
+            book_calendar_tool,  # Use the created tool
+        ]
 
         self.agent = create_react_agent(
             model=self.llm,
@@ -129,7 +184,6 @@ class Chatbot1:
         )
 
     async def chatbot(self, state: State):
-        """Process messages using the LLM with tools"""
         print("this is the state", state["messages"])
         response = await self.agent.ainvoke(state)
         response["messages"][-1] = HumanMessage(
